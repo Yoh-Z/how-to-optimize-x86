@@ -1,21 +1,36 @@
 #include <iostream>
 #include <cmath>
 #include <cstdlib>
-#include <ctime>
-#include <Windows.h>
 
-#include <opencv2/imgproc.hpp>
-#include <opencv2/imgcodecs.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/core.hpp>
-#include <opencv2/dnn.hpp>
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else // _WIN32
+#include <sys/time.h>
+#endif // _WIN32
 
 #include "tool.h"
-using namespace cv;
 using namespace std;
 
 #define DEBUG_TEST 0
-#define FUNC_USED mul_v7
+#define FUNC_USED mul_v6
+
+double get_current_time()
+{
+#ifdef _WIN32
+	LARGE_INTEGER freq;
+	LARGE_INTEGER pc;
+	QueryPerformanceFrequency(&freq);
+	QueryPerformanceCounter(&pc);
+
+	return pc.QuadPart * 1000.0 / freq.QuadPart;
+#else  // _WIN32
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+
+	return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
+#endif // _WIN32
+}
 
 int createRandom(float* src, int width, int height, int bottom, int top)
 {
@@ -41,35 +56,27 @@ int main()
 	createRandom(a, m, k, 0, 20);
 	createRandom(b, k, n, 0, 20);
 
-	int time_b, time_e;
-	time_b = cv::getTickCount();
+	double time_b, time_e;
+	time_b = get_current_time();
 	FUNC_USED(m, n, k, a, b, c);
-	time_e = cv::getTickCount();
-	double used_time = (double)(time_e - time_b) / cv::getTickFrequency();
+	time_e = get_current_time();
+	double used_time = (double)(time_e - time_b);
 
-	cv::Mat aP = cv::Mat(m, k, CV_32FC1, a);
-	cv::Mat bP = cv::Mat(k, n, CV_32FC1, b);
-	time_b = cv::getTickCount();
-	cv::Mat cP = aP * bP;
-	time_e = cv::getTickCount();
-	double opencv_used_time = (double)(time_e - time_b) / cv::getTickFrequency();
-	cout << "opencv " << opencv_used_time << endl;
+	float* d = new float[m * n];
+	time_b = get_current_time();
+	mul_v1(m, n, k, a, b, d);
+	time_e = get_current_time();
+	double v1_used_time = (double)(time_e - time_b);
+	cout << "mul_v1 " << v1_used_time << endl;
 #if DEBUG_TEST
 	cout << aP << endl;
 	cout << bP << endl;
 #endif
 
-	float diff = 0;
-	for (int i = 0; i < m; i++) 
+	double diff = 0;
+	for (int i = 0; i < m * n; i++)
 	{
-		for (int j = 0; j < n; j++) 
-		{
-			int idx = i * n + j;
-			diff += abs(cP.at<float>(i, j) - c[idx]);
-#if DEBUG_TEST
-			cout << cP.at<float>(i, j) << " " << c[idx] << endl;
-#endif
-		}
+		diff += abs(c[i] - d[i]);
 	}
 	if (diff > 0.5) 
 	{
@@ -81,15 +88,17 @@ int main()
 		for (int i = 0; i < 20; ++i) 
 		{
 			memset(c, 0, m * n * sizeof(*c));
-			time_b = cv::getTickCount();
+			time_b = get_current_time();
 			FUNC_USED(m, n, k, a, b, c);
-			time_e = cv::getTickCount();
-			used_time = min(used_time, (double)(time_e - time_b) / cv::getTickFrequency());
+			time_e = get_current_time();
+			used_time = min(used_time, time_e - time_b);
 		}
 	}
 
 	cout << "used time " << used_time << endl;
 	cout << "gf " << gflops / used_time << endl;
 	cout << "diff " << diff << endl;
+
+	getchar();
 	return 0;
 }

@@ -1,8 +1,7 @@
 #include "tool.h"
+#include <immintrin.h>
+#include <emmintrin.h>
 #include <iostream>
-
-
-using namespace cv;
 
 void mul_v1(int m, int n, int k, float* a, float* b, float* c)
 {
