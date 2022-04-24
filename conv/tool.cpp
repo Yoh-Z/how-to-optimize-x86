@@ -518,6 +518,131 @@ void mul_v9(int m, int n, int k, float* a, float* b, float* c)
 
 void AddtoDot12x8AVX(int m, int n, int k, float* a, float* b, float* c)
 {
+    float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr, * a_4p_pntr, * a_5p_pntr, * a_6p_pntr, * a_7p_pntr, * a_8p_pntr, * a_9p_pntr, * a_10p_pntr, * a_11p_pntr;
+
+    a_0p_pntr = a;
+    a_1p_pntr = a + k;
+    a_2p_pntr = a + 2 * k;
+    a_3p_pntr = a + 3 * k;
+    a_4p_pntr = a + 4 * k;
+    a_5p_pntr = a + 5 * k;
+    a_6p_pntr = a + 6 * k;
+    a_7p_pntr = a + 7 * k;
+    a_8p_pntr = a + 8 * k;
+    a_9p_pntr = a + 9 * k;
+    a_10p_pntr = a + 10 * k;
+    a_11p_pntr = a + 11 * k;
+
+    v8f_t
+        c_p0_sum,
+        c_p1_sum,
+        c_p2_sum,
+        c_p3_sum,
+        c_p4_sum,
+        c_p5_sum,
+        c_p6_sum,
+        c_p7_sum,
+        c_p8_sum,
+        c_p9_sum,
+        c_p10_sum,
+        c_p11_sum;
+
+    v8f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, a_4p_reg, a_5p_reg, a_6p_reg, a_7p_reg, a_8p_reg, a_9p_reg, a_10p_reg, a_11p_reg, b_reg;
+    c_p0_sum.v = _mm256_setzero_ps();
+    c_p1_sum.v = _mm256_setzero_ps();
+    c_p2_sum.v = _mm256_setzero_ps();
+    c_p3_sum.v = _mm256_setzero_ps();
+    c_p4_sum.v = _mm256_setzero_ps();
+    c_p5_sum.v = _mm256_setzero_ps();
+    c_p6_sum.v = _mm256_setzero_ps();
+    c_p7_sum.v = _mm256_setzero_ps();
+    c_p8_sum.v = _mm256_setzero_ps();
+    c_p9_sum.v = _mm256_setzero_ps();
+    c_p10_sum.v = _mm256_setzero_ps();
+    c_p11_sum.v = _mm256_setzero_ps();
+    a_0p_reg.v = _mm256_setzero_ps();
+    a_1p_reg.v = _mm256_setzero_ps();
+    a_2p_reg.v = _mm256_setzero_ps();
+    a_3p_reg.v = _mm256_setzero_ps();
+    a_4p_reg.v = _mm256_setzero_ps();
+    a_5p_reg.v = _mm256_setzero_ps();
+    a_6p_reg.v = _mm256_setzero_ps();
+    a_7p_reg.v = _mm256_setzero_ps();
+    a_8p_reg.v = _mm256_setzero_ps();
+    a_9p_reg.v = _mm256_setzero_ps();
+    a_10p_reg.v = _mm256_setzero_ps();
+    a_11p_reg.v = _mm256_setzero_ps();
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_load_ps((float*)&b[i * n]);
+
+        a_0p_reg.v = _mm256_set1_ps(*a_0p_pntr++);
+        a_1p_reg.v = _mm256_set1_ps(*a_1p_pntr++);
+        a_2p_reg.v = _mm256_set1_ps(*a_2p_pntr++);
+        a_3p_reg.v = _mm256_set1_ps(*a_3p_pntr++);
+        a_4p_reg.v = _mm256_set1_ps(*a_4p_pntr++);
+        a_5p_reg.v = _mm256_set1_ps(*a_5p_pntr++);
+        a_6p_reg.v = _mm256_set1_ps(*a_6p_pntr++);
+        a_7p_reg.v = _mm256_set1_ps(*a_7p_pntr++);
+        a_8p_reg.v = _mm256_set1_ps(*a_8p_pntr++);
+        a_9p_reg.v = _mm256_set1_ps(*a_9p_pntr++);
+        a_10p_reg.v = _mm256_set1_ps(*a_10p_pntr++);
+        a_11p_reg.v = _mm256_set1_ps(*a_11p_pntr++);
+
+        c_p0_sum.v = _mm256_add_ps(c_p0_sum.v, _mm256_mul_ps(b_reg.v, a_0p_reg.v));
+        c_p1_sum.v = _mm256_add_ps(c_p1_sum.v, _mm256_mul_ps(b_reg.v, a_1p_reg.v));
+        c_p2_sum.v = _mm256_add_ps(c_p2_sum.v, _mm256_mul_ps(b_reg.v, a_2p_reg.v));
+        c_p3_sum.v = _mm256_add_ps(c_p3_sum.v, _mm256_mul_ps(b_reg.v, a_3p_reg.v));
+        c_p4_sum.v = _mm256_add_ps(c_p4_sum.v, _mm256_mul_ps(b_reg.v, a_4p_reg.v));
+        c_p5_sum.v = _mm256_add_ps(c_p5_sum.v, _mm256_mul_ps(b_reg.v, a_5p_reg.v));
+        c_p6_sum.v = _mm256_add_ps(c_p6_sum.v, _mm256_mul_ps(b_reg.v, a_6p_reg.v));
+        c_p7_sum.v = _mm256_add_ps(c_p7_sum.v, _mm256_mul_ps(b_reg.v, a_7p_reg.v));
+        c_p8_sum.v = _mm256_add_ps(c_p8_sum.v, _mm256_mul_ps(b_reg.v, a_8p_reg.v));
+        c_p9_sum.v = _mm256_add_ps(c_p9_sum.v, _mm256_mul_ps(b_reg.v, a_9p_reg.v));
+        c_p10_sum.v = _mm256_add_ps(c_p10_sum.v, _mm256_mul_ps(b_reg.v, a_10p_reg.v));
+        c_p11_sum.v = _mm256_add_ps(c_p11_sum.v, _mm256_mul_ps(b_reg.v, a_11p_reg.v));
+    }
+
+    float* n_c = c;
+    _mm256_storeu_ps(n_c, c_p0_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p1_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p2_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p3_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p4_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p5_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p6_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p7_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p8_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p9_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p10_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p11_sum.v);
+}
+
+void mul_v10(int m, int n, int k, float* a, float* b, float* c)
+{
+    for (int i = 0; i < m; i += 12)
+    {
+        for (int j = 0; j < n; j += 8)
+        {
+            AddtoDot12x8AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+}
+
+void AddtoDot8x8FMA(int m, int n, int k, float* a, float* b, float* c)
+{
     float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr, * a_4p_pntr, * a_5p_pntr, * a_6p_pntr, * a_7p_pntr;
 
     a_0p_pntr = a;
@@ -570,14 +695,14 @@ void AddtoDot12x8AVX(int m, int n, int k, float* a, float* b, float* c)
         a_6p_reg.v = _mm256_set1_ps(*a_6p_pntr++);
         a_7p_reg.v = _mm256_set1_ps(*a_7p_pntr++);
 
-        c_p0_sum.v = _mm256_add_ps(c_p0_sum.v, _mm256_mul_ps(b_reg.v, a_0p_reg.v));
-        c_p1_sum.v = _mm256_add_ps(c_p1_sum.v, _mm256_mul_ps(b_reg.v, a_1p_reg.v));
-        c_p2_sum.v = _mm256_add_ps(c_p2_sum.v, _mm256_mul_ps(b_reg.v, a_2p_reg.v));
-        c_p3_sum.v = _mm256_add_ps(c_p3_sum.v, _mm256_mul_ps(b_reg.v, a_3p_reg.v));
-        c_p4_sum.v = _mm256_add_ps(c_p4_sum.v, _mm256_mul_ps(b_reg.v, a_4p_reg.v));
-        c_p5_sum.v = _mm256_add_ps(c_p5_sum.v, _mm256_mul_ps(b_reg.v, a_5p_reg.v));
-        c_p6_sum.v = _mm256_add_ps(c_p6_sum.v, _mm256_mul_ps(b_reg.v, a_6p_reg.v));
-        c_p7_sum.v = _mm256_add_ps(c_p7_sum.v, _mm256_mul_ps(b_reg.v, a_7p_reg.v));
+        c_p0_sum.v = _mm256_fmadd_ps(b_reg.v, a_0p_reg.v, c_p0_sum.v);
+        c_p1_sum.v = _mm256_fmadd_ps(b_reg.v, a_1p_reg.v, c_p1_sum.v);
+        c_p2_sum.v = _mm256_fmadd_ps(b_reg.v, a_2p_reg.v, c_p2_sum.v);
+        c_p3_sum.v = _mm256_fmadd_ps(b_reg.v, a_3p_reg.v, c_p3_sum.v);
+        c_p4_sum.v = _mm256_fmadd_ps(b_reg.v, a_4p_reg.v, c_p4_sum.v);
+        c_p5_sum.v = _mm256_fmadd_ps(b_reg.v, a_5p_reg.v, c_p5_sum.v);
+        c_p6_sum.v = _mm256_fmadd_ps(b_reg.v, a_6p_reg.v, c_p6_sum.v);
+        c_p7_sum.v = _mm256_fmadd_ps(b_reg.v, a_7p_reg.v, c_p7_sum.v);
     }
 
     float* n_c = c;
@@ -598,13 +723,13 @@ void AddtoDot12x8AVX(int m, int n, int k, float* a, float* b, float* c)
     _mm256_storeu_ps(n_c, c_p7_sum.v);
 }
 
-void mul_v10(int m, int n, int k, float* a, float* b, float* c)
+void mul_v11(int m, int n, int k, float* a, float* b, float* c)
 {
-    for (int i = 0; i < m; i += 12)
+    for (int i = 0; i < m; i += 8)
     {
         for (int j = 0; j < n; j += 8)
         {
-            AddtoDot8x8AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+            AddtoDot8x8FMA(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
     }
 }
