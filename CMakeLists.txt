@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
 project(cmake_test LANGUAGES CXX)
 
 set(CMAKE_CXX_FLAGS "-mavx2 -mavx -mfma")

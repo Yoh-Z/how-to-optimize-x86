@@ -29,16 +29,21 @@ void AddtoDot(int k, float* a, float* b, float* c, int cols_b)
     }
 }
 
+void AddtoDot1x1(int m, int n, int k, float* a, float* b, float* c)
+{
+    for (int i = 0; i < k; i++)
+    {
+        *c += *(a ++) * *(b + n * i);
+    }
+}
+
 void mul_v2(int m, int n, int k, float* a, float* b, float* c)
 {
     for (int i = 0; i < m; ++i) 
     {
         for (int j = 0; j < n; ++j) 
         {
-            int idxc = i * n + j;
-            int msgb = j;
-            int msga = i * k;
-            AddtoDot(k, &a[msga], &b[msgb], &c[idxc], n);
+            AddtoDot1x1(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
     }
 }
@@ -98,7 +103,6 @@ void mul_v4(int m, int n, int k, float* a, float* b, float* c)
         }
     }
 }
-
 
 void AddtoDot4x4(int m, int n, int k, float* a, float* b, float* c)
 {
@@ -160,24 +164,38 @@ void AddtoDot4x4(int m, int n, int k, float* a, float* b, float* c)
     *n_c = c_30_reg, * (n_c + 1) = c_31_reg, * (n_c + 2) = c_32_reg, * (n_c + 3) = c_33_reg;
 }
 
+
 void mul_v5(int m, int n, int k, float* a, float* b, float* c)
 {
-    for (int i = 0; i < m; i += 4)
+    const int mm = m - m % 4, nn = n - n % 4;
+    for (int i = 0; i < mm; i += 4)
     {
-        for (int j = 0; j < n; j += 4)
+        for (int j = 0; j < nn; j += 4)
         {
             AddtoDot4x4(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
+        for (int j = nn; j < n; j++)
+        {
+            AddtoDot1x4(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
     }
-}
+    for (int i = mm; i < m; i++)
+    {
+        //TODO 4x1
+        for (int j = 0; j < n; j++)
+        {
+            AddtoDot1x1(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
 
+}
 
 typedef union {
     __m128 v;
     float d[4];
 }v4f_t;
 
-void AddtoDot4x4AVX(int m, int n, int k, float* a, float* b, float* c)
+void AddtoDot4x4SSE(int m, int n, int k, float* a, float* b, float* c)
 {
     float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr;
 
@@ -234,15 +252,103 @@ void AddtoDot4x4AVX(int m, int n, int k, float* a, float* b, float* c)
 
 void mul_v6(int m, int n, int k, float* a, float* b, float* c)
 {
-    for (int i = 0; i < m; i+=4)
+    const int mm = m - m % 4, nn = n - n % 4;
+    for (int i = 0; i < mm; i += 4)
     {
-        for (int j = 0; j < n; j+=4)
+        for (int j = 0; j < nn; j += 4)
         {
-            AddtoDot4x4AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+            AddtoDot4x4SSE(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+        for (int j = nn; j < n; j++)
+        {
+            AddtoDot1x4(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+    for (int i = mm; i < m; i++)
+    {
+        //TODO 4x1
+        for (int j = 0; j < n; j++)
+        {
+            AddtoDot1x1(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
     }
 }
 
+void AddtoDot4x4FMA(int m, int n, int k, float* a, float* b, float* c)
+{
+    float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr;
+
+    a_0p_pntr = a;
+    a_1p_pntr = a + k;
+    a_2p_pntr = a + 2 * k;
+    a_3p_pntr = a + 3 * k;
+
+    v4f_t
+        c_p0_sum,
+        c_p1_sum,
+        c_p2_sum,
+        c_p3_sum;
+    v4f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, b_reg;
+
+    c_p0_sum.v = _mm_setzero_ps();
+    c_p1_sum.v = _mm_setzero_ps();
+    c_p2_sum.v = _mm_setzero_ps();
+    c_p3_sum.v = _mm_setzero_ps();
+    a_0p_reg.v = _mm_setzero_ps();
+    a_1p_reg.v = _mm_setzero_ps();
+    a_2p_reg.v = _mm_setzero_ps();
+    a_3p_reg.v = _mm_setzero_ps();
+
+    for (int p = 0; p < k; ++p) {
+        b_reg.v = _mm_load_ps((float*)&*(b + p * n));
+
+        a_0p_reg.v = _mm_set_ps1(*a_0p_pntr++);
+        a_1p_reg.v = _mm_set_ps1(*a_1p_pntr++);
+        a_2p_reg.v = _mm_set_ps1(*a_2p_pntr++);
+        a_3p_reg.v = _mm_set_ps1(*a_3p_pntr++);
+
+        c_p0_sum.v = _mm_fmadd_ps(a_0p_reg.v, b_reg.v, c_p0_sum.v);
+        c_p1_sum.v = _mm_fmadd_ps(a_1p_reg.v, b_reg.v, c_p1_sum.v);
+        c_p2_sum.v = _mm_fmadd_ps(a_2p_reg.v, b_reg.v, c_p2_sum.v);
+        c_p3_sum.v = _mm_fmadd_ps(a_3p_reg.v, b_reg.v, c_p3_sum.v);
+    }
+
+    float* n_c = c;
+    *n_c += c_p0_sum.d[0], * (n_c + 1) += c_p0_sum.d[1], * (n_c + 2) += c_p0_sum.d[2], * (n_c + 3) += c_p0_sum.d[3];
+
+    n_c = n_c + n;
+    *n_c += c_p1_sum.d[0], * (n_c + 1) += c_p1_sum.d[1], * (n_c + 2) += c_p1_sum.d[2], * (n_c + 3) += c_p1_sum.d[3];
+
+    n_c = n_c + n;
+    *n_c += c_p2_sum.d[0], * (n_c + 1) += c_p2_sum.d[1], * (n_c + 2) += c_p2_sum.d[2], * (n_c + 3) += c_p2_sum.d[3];
+
+    n_c = n_c + n;
+    *n_c += c_p3_sum.d[0], *(n_c + 1) += c_p3_sum.d[1], *(n_c + 2) += c_p3_sum.d[2], *(n_c + 3) += c_p3_sum.d[3];
+}
+
+void mul_v7(int m, int n, int k, float* a, float* b, float* c)
+{
+    const int mm = m - m % 4, nn = n - n % 4;
+    for (int i = 0; i < mm; i += 4)
+    {
+        for (int j = 0; j < nn; j += 4)
+        {
+            AddtoDot4x4FMA(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+        for (int j = nn; j < n; j++)
+        {
+            AddtoDot1x4(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+    for (int i = mm; i < m; i++)
+    {
+        //TODO 4x1
+        for (int j = 0; j < n; j++)
+        {
+            AddtoDot1x1(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+}
 
 typedef union {
     __m256 v;
@@ -253,6 +359,17 @@ typedef union {
 
 void AddtoDot8x8AVX(int m, int n, int k, float* a, float* b, float* c)
 {
+    float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr, * a_4p_pntr, * a_5p_pntr, * a_6p_pntr, * a_7p_pntr;
+
+    a_0p_pntr = a;
+    a_1p_pntr = a + k;
+    a_2p_pntr = a + 2 * k;
+    a_3p_pntr = a + 3 * k;
+    a_4p_pntr = a + 4 * k;
+    a_5p_pntr = a + 5 * k;
+    a_6p_pntr = a + 6 * k;
+    a_7p_pntr = a + 7 * k;
+
     v8f_t
         c_p0_sum,
         c_p1_sum,
@@ -263,7 +380,7 @@ void AddtoDot8x8AVX(int m, int n, int k, float* a, float* b, float* c)
         c_p6_sum,
         c_p7_sum;
 
-    v8f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, b_reg;
+    v8f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, a_4p_reg, a_5p_reg, a_6p_reg, a_7p_reg, b_reg;
     c_p0_sum.v = _mm256_setzero_ps();
     c_p1_sum.v = _mm256_setzero_ps();
     c_p2_sum.v = _mm256_setzero_ps();
@@ -276,20 +393,218 @@ void AddtoDot8x8AVX(int m, int n, int k, float* a, float* b, float* c)
     a_1p_reg.v = _mm256_setzero_ps();
     a_2p_reg.v = _mm256_setzero_ps();
     a_3p_reg.v = _mm256_setzero_ps();
+    a_4p_reg.v = _mm256_setzero_ps();
+    a_5p_reg.v = _mm256_setzero_ps();
+    a_6p_reg.v = _mm256_setzero_ps();
+    a_7p_reg.v = _mm256_setzero_ps();
 
     for (int i = 0; i < k; i++)
     {
+        b_reg.v = _mm256_load_ps((float*)&b[i * n]);
 
+        a_0p_reg.v = _mm256_set1_ps(*a_0p_pntr++);
+        a_1p_reg.v = _mm256_set1_ps(*a_1p_pntr++);
+        a_2p_reg.v = _mm256_set1_ps(*a_2p_pntr++);
+        a_3p_reg.v = _mm256_set1_ps(*a_3p_pntr++);
+        a_4p_reg.v = _mm256_set1_ps(*a_4p_pntr++);
+        a_5p_reg.v = _mm256_set1_ps(*a_5p_pntr++);
+        a_6p_reg.v = _mm256_set1_ps(*a_6p_pntr++);
+        a_7p_reg.v = _mm256_set1_ps(*a_7p_pntr++);
+
+        c_p0_sum.v = _mm256_add_ps(c_p0_sum.v, _mm256_mul_ps(b_reg.v, a_0p_reg.v));
+        c_p1_sum.v = _mm256_add_ps(c_p1_sum.v, _mm256_mul_ps(b_reg.v, a_1p_reg.v));
+        c_p2_sum.v = _mm256_add_ps(c_p2_sum.v, _mm256_mul_ps(b_reg.v, a_2p_reg.v));
+        c_p3_sum.v = _mm256_add_ps(c_p3_sum.v, _mm256_mul_ps(b_reg.v, a_3p_reg.v));
+        c_p4_sum.v = _mm256_add_ps(c_p4_sum.v, _mm256_mul_ps(b_reg.v, a_4p_reg.v));
+        c_p5_sum.v = _mm256_add_ps(c_p5_sum.v, _mm256_mul_ps(b_reg.v, a_5p_reg.v));
+        c_p6_sum.v = _mm256_add_ps(c_p6_sum.v, _mm256_mul_ps(b_reg.v, a_6p_reg.v));
+        c_p7_sum.v = _mm256_add_ps(c_p7_sum.v, _mm256_mul_ps(b_reg.v, a_7p_reg.v));
     }
+
+    float* n_c = c;
+    _mm256_storeu_ps(n_c, c_p0_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p1_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p2_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p3_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p4_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p5_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p6_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p7_sum.v);
 }
 
-void mul_v7(int m, int n, int k, float* a, float* b, float* c)
+void mul_v8(int m, int n, int k, float* a, float* b, float* c)
 {
     for (int i = 0; i < m; i += 8)
     {
         for (int j = 0; j < n; j += 8)
         {
-            AddtoDot8x8AVX(m, n, k, a, b, c);
+            AddtoDot8x8AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+}
+
+void AddtoDot4x8AVX(int m, int n, int k, float* a, float* b, float* c)
+{
+    float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr;
+
+    a_0p_pntr = a;
+    a_1p_pntr = a + k;
+    a_2p_pntr = a + 2 * k;
+    a_3p_pntr = a + 3 * k;
+
+    v8f_t
+        c_p0_sum,
+        c_p1_sum,
+        c_p2_sum,
+        c_p3_sum;
+
+    v8f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, b_reg;
+    c_p0_sum.v = _mm256_setzero_ps();
+    c_p1_sum.v = _mm256_setzero_ps();
+    c_p2_sum.v = _mm256_setzero_ps();
+    c_p3_sum.v = _mm256_setzero_ps();
+
+    a_0p_reg.v = _mm256_setzero_ps();
+    a_1p_reg.v = _mm256_setzero_ps();
+    a_2p_reg.v = _mm256_setzero_ps();
+    a_3p_reg.v = _mm256_setzero_ps();
+
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_load_ps((float*)&b[i * n]);
+
+        a_0p_reg.v = _mm256_set1_ps(*a_0p_pntr++);
+        a_1p_reg.v = _mm256_set1_ps(*a_1p_pntr++);
+        a_2p_reg.v = _mm256_set1_ps(*a_2p_pntr++);
+        a_3p_reg.v = _mm256_set1_ps(*a_3p_pntr++);
+
+
+        c_p0_sum.v = _mm256_add_ps(c_p0_sum.v, _mm256_mul_ps(b_reg.v, a_0p_reg.v));
+        c_p1_sum.v = _mm256_add_ps(c_p1_sum.v, _mm256_mul_ps(b_reg.v, a_1p_reg.v));
+        c_p2_sum.v = _mm256_add_ps(c_p2_sum.v, _mm256_mul_ps(b_reg.v, a_2p_reg.v));
+        c_p3_sum.v = _mm256_add_ps(c_p3_sum.v, _mm256_mul_ps(b_reg.v, a_3p_reg.v));
+
+    }
+
+    float* n_c = c;
+    _mm256_storeu_ps(n_c, c_p0_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p1_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p2_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p3_sum.v);
+
+}
+
+void mul_v9(int m, int n, int k, float* a, float* b, float* c)
+{
+    for (int i = 0; i < m; i += 4)
+    {
+        for (int j = 0; j < n; j += 8)
+        {
+            AddtoDot4x8AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+}
+
+void AddtoDot12x8AVX(int m, int n, int k, float* a, float* b, float* c)
+{
+    float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr, * a_4p_pntr, * a_5p_pntr, * a_6p_pntr, * a_7p_pntr;
+
+    a_0p_pntr = a;
+    a_1p_pntr = a + k;
+    a_2p_pntr = a + 2 * k;
+    a_3p_pntr = a + 3 * k;
+    a_4p_pntr = a + 4 * k;
+    a_5p_pntr = a + 5 * k;
+    a_6p_pntr = a + 6 * k;
+    a_7p_pntr = a + 7 * k;
+
+    v8f_t
+        c_p0_sum,
+        c_p1_sum,
+        c_p2_sum,
+        c_p3_sum,
+        c_p4_sum,
+        c_p5_sum,
+        c_p6_sum,
+        c_p7_sum;
+
+    v8f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, a_4p_reg, a_5p_reg, a_6p_reg, a_7p_reg, b_reg;
+    c_p0_sum.v = _mm256_setzero_ps();
+    c_p1_sum.v = _mm256_setzero_ps();
+    c_p2_sum.v = _mm256_setzero_ps();
+    c_p3_sum.v = _mm256_setzero_ps();
+    c_p4_sum.v = _mm256_setzero_ps();
+    c_p5_sum.v = _mm256_setzero_ps();
+    c_p6_sum.v = _mm256_setzero_ps();
+    c_p7_sum.v = _mm256_setzero_ps();
+    a_0p_reg.v = _mm256_setzero_ps();
+    a_1p_reg.v = _mm256_setzero_ps();
+    a_2p_reg.v = _mm256_setzero_ps();
+    a_3p_reg.v = _mm256_setzero_ps();
+    a_4p_reg.v = _mm256_setzero_ps();
+    a_5p_reg.v = _mm256_setzero_ps();
+    a_6p_reg.v = _mm256_setzero_ps();
+    a_7p_reg.v = _mm256_setzero_ps();
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_load_ps((float*)&b[i * n]);
+
+        a_0p_reg.v = _mm256_set1_ps(*a_0p_pntr++);
+        a_1p_reg.v = _mm256_set1_ps(*a_1p_pntr++);
+        a_2p_reg.v = _mm256_set1_ps(*a_2p_pntr++);
+        a_3p_reg.v = _mm256_set1_ps(*a_3p_pntr++);
+        a_4p_reg.v = _mm256_set1_ps(*a_4p_pntr++);
+        a_5p_reg.v = _mm256_set1_ps(*a_5p_pntr++);
+        a_6p_reg.v = _mm256_set1_ps(*a_6p_pntr++);
+        a_7p_reg.v = _mm256_set1_ps(*a_7p_pntr++);
+
+        c_p0_sum.v = _mm256_add_ps(c_p0_sum.v, _mm256_mul_ps(b_reg.v, a_0p_reg.v));
+        c_p1_sum.v = _mm256_add_ps(c_p1_sum.v, _mm256_mul_ps(b_reg.v, a_1p_reg.v));
+        c_p2_sum.v = _mm256_add_ps(c_p2_sum.v, _mm256_mul_ps(b_reg.v, a_2p_reg.v));
+        c_p3_sum.v = _mm256_add_ps(c_p3_sum.v, _mm256_mul_ps(b_reg.v, a_3p_reg.v));
+        c_p4_sum.v = _mm256_add_ps(c_p4_sum.v, _mm256_mul_ps(b_reg.v, a_4p_reg.v));
+        c_p5_sum.v = _mm256_add_ps(c_p5_sum.v, _mm256_mul_ps(b_reg.v, a_5p_reg.v));
+        c_p6_sum.v = _mm256_add_ps(c_p6_sum.v, _mm256_mul_ps(b_reg.v, a_6p_reg.v));
+        c_p7_sum.v = _mm256_add_ps(c_p7_sum.v, _mm256_mul_ps(b_reg.v, a_7p_reg.v));
+    }
+
+    float* n_c = c;
+    _mm256_storeu_ps(n_c, c_p0_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p1_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p2_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p3_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p4_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p5_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p6_sum.v);
+    n_c += n;
+    _mm256_storeu_ps(n_c, c_p7_sum.v);
+}
+
+void mul_v10(int m, int n, int k, float* a, float* b, float* c)
+{
+    for (int i = 0; i < m; i += 12)
+    {
+        for (int j = 0; j < n; j += 8)
+        {
+            AddtoDot8x8AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
     }
 }

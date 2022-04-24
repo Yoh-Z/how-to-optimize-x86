@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -14,7 +15,7 @@
 using namespace std;
 
 #define DEBUG_TEST 0
-#define FUNC_USED mul_v6
+#define FUNC_USED mul_v8
 
 double get_current_time()
 {
@@ -44,15 +45,29 @@ int createRandom(float* src, int width, int height, int bottom, int top)
 	return 0;
 }
 
+void pretty_print(float* src, int width, int height)
+{
+	for (int i = 0; i < width; i++)
+	{
+		for (int j = 0; j < height; j++)
+		{
+			cout << src[i * height + j] << " ";
+		}
+		cout << endl;
+	}
+}
+
 int main() 
 {
 	srand((unsigned)time(NULL));
-	int m = 2560, n = 1280, k = 1280;
+	int m = 2400, n = 888, k = 888;
 	double gflops = 2.0 * m * n * k * 1.0e-09;
 	float* a = new float[m * k];
 	float* b = new float[k * n];
 	float* c = new float[m * n];
+	float* d = new float[m * n];
 	memset(c, 0, m * n * sizeof(*c));
+	memset(d, 0, m * n * sizeof(*d));
 
 	createRandom(a, m, k, 0, 20);
 	createRandom(b, k, n, 0, 20);
@@ -63,7 +78,7 @@ int main()
 	time_e = get_current_time();
 	double used_time = (double)(time_e - time_b);
 
-	float* d = new float[m * n];
+
 	time_b = get_current_time();
 	mul_v1(m, n, k, a, b, d);
 	time_e = get_current_time();
@@ -83,6 +98,9 @@ int main()
 	{
 		cout << diff << " ";
 		cout << "error!" << endl;
+		pretty_print(c, m, n);
+		cout << endl;
+		pretty_print(d, m, n);
 	}
 	else 
 	{
@@ -97,9 +115,8 @@ int main()
 	}
 
 	cout << "used time " << used_time << endl;
-	cout << "gf " << gflops / used_time << endl;
+	cout << "gf " << gflops / used_time * 1e3 << endl;
 	cout << "diff " << diff << endl;
 
-	getchar();
 	return 0;
 }
