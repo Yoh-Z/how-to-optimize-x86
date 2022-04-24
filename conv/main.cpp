@@ -14,7 +14,7 @@
 #include "tool.h"
 using namespace std;
 
-#define DEBUG_TEST 0
+#define DEBUG_TEST 1
 #define FUNC_USED mul_v8
 
 double get_current_time()
@@ -60,7 +60,7 @@ void pretty_print(float* src, int width, int height)
 int main() 
 {
 	srand((unsigned)time(NULL));
-	int m = 2400, n = 888, k = 888;
+	int m = 831, n = 127, k = 111;
 	double gflops = 2.0 * m * n * k * 1.0e-09;
 	float* a = new float[m * k];
 	float* b = new float[k * n];
@@ -84,10 +84,6 @@ int main()
 	time_e = get_current_time();
 	double v1_used_time = (double)(time_e - time_b);
 	cout << "mul_v1 " << v1_used_time << endl;
-#if DEBUG_TEST
-	cout << aP << endl;
-	cout << bP << endl;
-#endif
 
 	double diff = 0;
 	for (int i = 0; i < m * n; i++)
@@ -98,9 +94,15 @@ int main()
 	{
 		cout << diff << " ";
 		cout << "error!" << endl;
+#if DEBUG_TEST
+		pretty_print(a, m, k);
+		cout << endl;
+		pretty_print(b, k, n);
+		cout << endl;
 		pretty_print(c, m, n);
 		cout << endl;
 		pretty_print(d, m, n);
+#endif
 	}
 	else 
 	{
