@@ -15,8 +15,9 @@
 #include "convolution.h"
 using namespace std;
 
-#define DEBUG_TEST 0
+#define DEBUG_TEST 1
 #define FUNC_USED mul_v11
+#define CONVFUNC im2col_gemm
 
 double get_current_time()
 {
@@ -35,12 +36,15 @@ double get_current_time()
 #endif // _WIN32
 }
 
-int createRandom(float* src, int width, int height, int bottom, int top)
+int createRandom(float* src, int width, int height, int channel, int bottom, int top)
 {
-	for (int i = 0; i < height * width; ++i)
+	for (int ch = 0; ch < channel; ch++)
 	{
-		float num = (rand() % (top - bottom + 1)) + bottom;
-		*src++ = num;
+		for (int i = 0; i < height * width; ++i)
+		{
+			float num = (rand() % (top - bottom + 1)) + bottom;
+			*src++ = num;
+		}
 	}
 
 	return 0;
@@ -70,8 +74,8 @@ void gemm_benchmark()
 	memset(c, 0, m * n * sizeof(*c));
 	memset(d, 0, m * n * sizeof(*d));
 
-	createRandom(a, m, k, 0, 20);
-	createRandom(b, k, n, 0, 20);
+	createRandom(a, m, k, 1, 0, 20);
+	createRandom(b, k, n, 1, 0, 20);
 
 	double time_b, time_e;
 	time_b = get_current_time();
@@ -155,18 +159,16 @@ void test_im2col()
 		pretty_print(output_blob + k * stride, kW * kH, outW * outH);
 		cout << endl;
 	}
+
+	delete[]input_blob;
+	delete[]output_blob;
 }
 
 void test_conv()
 {
-	int w = 4, h = 4, c = 3, kW = 3, kH = 3;
+	int w = 41, h = 43, c = 31, kW = 31, kH = 31;
 	float* input_blob = new float[w * h * c];
-	for (int i = 0; i < w * h; i++)
-	{
-		input_blob[i] = i;
-		input_blob[w * h + i] = 2 * i;
-		input_blob[w * h * 2 + i] = 3 * i;
-	}
+	createRandom(input_blob, w, h, c, 0, 20);
 
 	float* kernel_blob = new float[kW * kH * c];
 	for (int i = 0; i < kW * kH * c; i++)
@@ -182,13 +184,41 @@ void test_conv()
 	naive_conv(input_blob, kernel_blob, output_blob, w, h, c, kW, kH, 1, 1, 0, 0);
 
 #if DEBUG_TEST
-	for (int i = 0; i < c; i++)
-	{
-		pretty_print(output_blob + i * outW * outH, outW, outH);
-		cout << endl;
-	}
+	
 #endif
 
+	float* res_blob = new float[outW * outH * c];
+	memset(res_blob, 0, sizeof(float) * outW * outH * c);
+	CONVFUNC(input_blob, kernel_blob, res_blob, w, h, c, kW, kH, 1, 1, 0, 0);
+
+	double diff = 0.0;
+	for (int i = 0; i < outW * outH * c; i++) 
+	{
+		diff += fabs(res_blob[i] - output_blob[i]);
+	}
+	if (diff > 0.5)
+	{
+#if DEBUG_TEST
+		for (int i = 0; i < c; i++)
+		{
+			pretty_print(res_blob + i * outW * outH, outW, outH);
+			cout << endl;
+		}
+		for (int i = 0; i < c; i++)
+		{
+			pretty_print(output_blob + i * outW * outH, outW, outH);
+			cout << endl;
+		}
+#endif
+	}
+	else {
+		cout << "conv is correct!" << endl;
+	}
+
+	delete[]input_blob;
+	delete[]kernel_blob;
+	delete[]output_blob;
+	delete[]res_blob;
 }
 
 int main() 

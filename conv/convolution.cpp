@@ -1,3 +1,6 @@
+#include <cstring>
+#include <cstdio>
+
 #include "convolution.h"
 #include "gemm_fun.h"
 
@@ -67,3 +70,36 @@ void im2col(const float* src, float* dst, int inW, int inH, int inC, int kW, int
     }
 }
 
+void pretty_print(float* src, int width, int height);
+
+void im2col_gemm(const float* src, float* kernel, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
+{
+    const int outW = (inW - kW + 2 * paddingW) / strideW + 1;
+    const int outH = (inH - kH + 2 * paddingH) / strideH + 1;
+    float* im2col_blob = new float[outW * outH * kW * kH * inC];
+    memset(im2col_blob, 0, sizeof(float) * outW * outH * kW * kH * inC);
+    im2col(src, im2col_blob, inW, inH, inC, kW, kH, 1, 1, 0, 0);
+
+    float* tmp_blob = new float[outW * outH * kW * kH * inC];
+    float* tmp_ptr = tmp_blob;
+
+    //transpose
+    const int stride = outW * outH;
+    for (int ch = 0; ch < inC; ch++)
+    {
+        const float* im2col_ptr = im2col_blob + ch * outW * outH * kW * kH;
+        for (int i = 0; i < outW * outH; i++)
+        {
+            for (int j = 0; j < kH * kW; j++)
+            {
+                *tmp_ptr++ = *(im2col_ptr + j * stride);
+            }
+            im2col_ptr++;
+        }
+    }
+
+    for (int i = 0; i < inC; i++)
+    {
+        mul_v1(outW * outH, 1, kW * kH, tmp_blob + i * outW * outH * kW * kH, kernel + i * kW * kH, dst + i * outW * outH);
+    }
+}
