@@ -387,8 +387,7 @@ void AddtoDot1x8AVX(int m, int n, int k, float* a, float* b, float* c)
         a_reg.v = _mm256_set_ps(*(a_pntr + 7 * k), *(a_pntr + 6 * k), *(a_pntr + 5 * k), *(a_pntr + 4 * k), *(a_pntr + 3 * k), *(a_pntr + 2 * k), *(a_pntr + 1 * k), *(a_pntr ));
         a_pntr++;
 
-        //c_sum.v = _mm256_add_ps(c_sum.v, _mm256_mul_ps(a_reg.v, b_reg.v));
-        c_sum.v = _mm256_fmadd_ps(a_reg.v, b_reg.v, c_sum.v);
+        c_sum.v = _mm256_add_ps(c_sum.v, _mm256_mul_ps(a_reg.v, b_reg.v));
     }
     float temp[8];
     _mm256_storeu_ps(temp, c_sum.v);
@@ -502,8 +501,11 @@ void mul_v8(int m, int n, int k, float* a, float* b, float* c)
     for (int i = mm; i < m; i++)
     {
         //TODO
-        
-        for (int j = 0; j < n; j++)
+        for (int j = 0; j < nn; j += 8)
+        {
+            AddtoDot8x1AVX(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+        for (int j = nn; j < n; j++)
         {
             AddtoDot1x1(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
@@ -701,6 +703,53 @@ void mul_v10(int m, int n, int k, float* a, float* b, float* c)
     }
 }
 
+void AddtoDot8x1FMA(int m, int n, int k, float* a, float* b, float* c)
+{
+    v8f_t c_sum, a_reg, b_reg;
+    float* a_pntr = a;
+    c_sum.v = _mm256_setzero_ps();
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_loadu_ps((float*)(b + i * n));
+
+        a_reg.v = _mm256_set1_ps(*a_pntr++);
+        c_sum.v = _mm256_fmadd_ps(a_reg.v, b_reg.v, c_sum.v);
+    }
+
+    _mm256_storeu_ps(c, c_sum.v);
+}
+
+void AddtoDot1x8FMA(int m, int n, int k, float* a, float* b, float* c)
+{
+    v8f_t c_sum, a_reg, b_reg;
+    float* a_pntr = a;
+    c_sum.v = _mm256_setzero_ps();
+    a_reg.v = _mm256_setzero_ps();
+    b_reg.v = _mm256_setzero_ps();
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_set1_ps(*(b + i * n));
+
+        a_reg.v = _mm256_set_ps(*(a_pntr + 7 * k), *(a_pntr + 6 * k), *(a_pntr + 5 * k), *(a_pntr + 4 * k), *(a_pntr + 3 * k), *(a_pntr + 2 * k), *(a_pntr + 1 * k), *(a_pntr));
+        a_pntr++;
+
+        c_sum.v = _mm256_fmadd_ps(a_reg.v, b_reg.v, c_sum.v);
+    }
+    float temp[8];
+    _mm256_storeu_ps(temp, c_sum.v);
+    float* n_c = c;
+    *n_c = c_sum.d[0];
+    *(n_c + n) = c_sum.d[1];
+    *(n_c + 2 * n) = c_sum.d[2];
+    *(n_c + 3 * n) = c_sum.d[3];
+    *(n_c + 4 * n) = c_sum.d[4];
+    *(n_c + 5 * n) = c_sum.d[5];
+    *(n_c + 6 * n) = c_sum.d[6];
+    *(n_c + 7 * n) = c_sum.d[7];
+}
+
 void AddtoDot8x8FMA(int m, int n, int k, float* a, float* b, float* c)
 {
     float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr, * a_4p_pntr, * a_5p_pntr, * a_6p_pntr, * a_7p_pntr;
@@ -785,11 +834,28 @@ void AddtoDot8x8FMA(int m, int n, int k, float* a, float* b, float* c)
 
 void mul_v11(int m, int n, int k, float* a, float* b, float* c)
 {
-    for (int i = 0; i < m; i += 8)
+    const int mm = m - m % 8, nn = n - n % 8;
+    for (int i = 0; i < mm; i += 8)
     {
-        for (int j = 0; j < n; j += 8)
+        for (int j = 0; j < nn; j += 8)
         {
             AddtoDot8x8FMA(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+        for (int j = nn; j < n; j++)
+        {
+            AddtoDot1x8FMA(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+    }
+    for (int i = mm; i < m; i++)
+    {
+        //TODO
+        for (int j = 0; j < nn; j += 8)
+        {
+            AddtoDot8x1FMA(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
+        }
+        for (int j = nn; j < n; j++)
+        {
+            AddtoDot1x1(m, n, k, &a[i * k], &b[j], &c[i * n + j]);
         }
     }
 }

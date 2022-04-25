@@ -15,7 +15,7 @@
 using namespace std;
 
 #define DEBUG_TEST 1
-#define FUNC_USED mul_v8
+#define FUNC_USED mul_v11
 
 double get_current_time()
 {
@@ -60,7 +60,7 @@ void pretty_print(float* src, int width, int height)
 int main() 
 {
 	srand((unsigned)time(NULL));
-	int m = 831, n = 127, k = 111;
+	int m = 800, n = 240, k = 120;
 	double gflops = 2.0 * m * n * k * 1.0e-09;
 	float* a = new float[m * k];
 	float* b = new float[k * n];
