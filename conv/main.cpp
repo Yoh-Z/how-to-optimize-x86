@@ -15,7 +15,7 @@
 #include "convolution.h"
 using namespace std;
 
-#define DEBUG_TEST 1
+#define DEBUG_TEST 0
 #define FUNC_USED mul_v11
 
 double get_current_time()
@@ -157,9 +157,43 @@ void test_im2col()
 	}
 }
 
+void test_conv()
+{
+	int w = 4, h = 4, c = 3, kW = 3, kH = 3;
+	float* input_blob = new float[w * h * c];
+	for (int i = 0; i < w * h; i++)
+	{
+		input_blob[i] = i;
+		input_blob[w * h + i] = 2 * i;
+		input_blob[w * h * 2 + i] = 3 * i;
+	}
+
+	float* kernel_blob = new float[kW * kH * c];
+	for (int i = 0; i < kW * kH * c; i++)
+	{
+		kernel_blob[i] = 1;
+	}
+
+	const int outW = w - kW + 1;
+	const int outH = h - kH + 1;
+	float* output_blob = new float[outW * outH * c];
+	memset(output_blob, 0, sizeof(float) * outW * outH * c);
+	
+	naive_conv(input_blob, kernel_blob, output_blob, w, h, c, kW, kH, 1, 1, 0, 0);
+
+#if DEBUG_TEST
+	for (int i = 0; i < c; i++)
+	{
+		pretty_print(output_blob + i * outW * outH, outW, outH);
+		cout << endl;
+	}
+#endif
+
+}
+
 int main() 
 {
-	test_im2col();
+	test_conv();
 
 	return 0;
 }

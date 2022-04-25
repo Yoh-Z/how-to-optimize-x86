@@ -1,30 +1,32 @@
 #include "convolution.h"
 #include "gemm_fun.h"
 
-void naive_conv(float* src, float* kernel, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
+void naive_conv(const float* src, const float* kernel, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
 {
     const int outW = (inW - kW + 2 * paddingW) / strideW + 1;
     const int outH = (inH - kH + 2 * paddingH) / strideH + 1;
 
     float* dst_ptr = dst;
-
-    for (int i = 0; i < outH; i++)
+    for (int ch = 0; ch < inC; ch++)
     {
-        for (int j = 0; j < outW; j++)
+        for (int i = 0; i < outH; i++)
         {
-            const float* src_ptr = src + i * inW + j;
-            const float* ker_ptr = kernel;
-
-            for (int ii = 0; ii < kH; ii++) 
+            for (int j = 0; j < outW; j++)
             {
-                for(int jj = 0; jj < kH; jj ++)
+                const float* src_ptr = src + i * inW + j + ch * inW * inH;
+                const float* ker_ptr = kernel;
+
+                for (int ii = 0; ii < kH; ii++)
                 {
-                    *dst_ptr += *src_ptr * *ker_ptr;
-                    dst_ptr++;
-                    src_ptr++;
-                    ker_ptr++;
-                    
+                    for (int jj = 0; jj < kW; jj++)
+                    {
+                        *dst_ptr += *(src_ptr + jj) * *ker_ptr;
+                        ker_ptr++;
+
+                    }
+                    src_ptr += inW;
                 }
+                dst_ptr++;
             }
         }
     }
