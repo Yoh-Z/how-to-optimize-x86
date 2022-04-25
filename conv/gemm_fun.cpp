@@ -1,4 +1,4 @@
-#include "tool.h"
+#include "gemm_fun.h"
 #include <immintrin.h>
 #include <emmintrin.h>
 #include <iostream>
@@ -848,7 +848,6 @@ void mul_v11(int m, int n, int k, float* a, float* b, float* c)
     }
     for (int i = mm; i < m; i++)
     {
-        //TODO
         for (int j = 0; j < nn; j += 8)
         {
             AddtoDot8x1FMA(m, n, k, &a[i * k], &b[j], &c[i * n + j]);

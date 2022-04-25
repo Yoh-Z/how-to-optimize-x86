@@ -11,7 +11,8 @@
 #include <sys/time.h>
 #endif // _WIN32
 
-#include "tool.h"
+#include "gemm_fun.h"
+#include "convolution.h"
 using namespace std;
 
 #define DEBUG_TEST 1
@@ -57,7 +58,7 @@ void pretty_print(float* src, int width, int height)
 	}
 }
 
-int main() 
+void gemm_benchmark()
 {
 	srand((unsigned)time(NULL));
 	int m = 800, n = 240, k = 120;
@@ -90,7 +91,7 @@ int main()
 	{
 		diff += abs(c[i] - d[i]);
 	}
-	if (diff > 0.5) 
+	if (diff > 0.5)
 	{
 		cout << diff << " ";
 		cout << "error!" << endl;
@@ -104,9 +105,9 @@ int main()
 		pretty_print(d, m, n);
 #endif
 	}
-	else 
+	else
 	{
-		for (int i = 0; i < 20; ++i) 
+		for (int i = 0; i < 20; ++i)
 		{
 			memset(c, 0, m * n * sizeof(*c));
 			time_b = get_current_time();
@@ -119,6 +120,46 @@ int main()
 	cout << "used time " << used_time << endl;
 	cout << "gf " << gflops / used_time * 1e3 << endl;
 	cout << "diff " << diff << endl;
+
+	delete[]a;
+	delete[]b;
+	delete[]c;
+	delete[]d;
+}
+
+void test_im2col()
+{
+	int w = 4, h = 4, c = 3, kW = 3, kH = 3;
+	float* input_blob = new float[w * h * c];
+	for (int i = 0; i < w * h; i++)
+	{
+		input_blob[i] = i;
+		input_blob[w * h + i] = 2 * i;
+		input_blob[w * h * 2 + i] = 3 * i;
+	}
+	pretty_print(input_blob, w, h);
+	pretty_print(input_blob + w * h, w, h);
+	pretty_print(input_blob + 2 * w * h, w, h);
+	cout << endl;
+
+	const int outW = w - kW + 1;
+	const int outH = h - kH + 1;
+	float* output_blob = new float[outW * outH * kW * kH * c];
+	memset(output_blob, 0, sizeof(float) * outW * outH * kW * kH * c);
+
+	im2col(input_blob, output_blob, w, h, c, kW, kH, 1, 1, 0, 0);
+
+	const int stride = outW * outH * kW * kH;
+	for (int k = 0; k < c; k++)
+	{
+		pretty_print(output_blob + k * stride, kW * kH, outW * outH);
+		cout << endl;
+	}
+}
+
+int main() 
+{
+	test_im2col();
 
 	return 0;
 }

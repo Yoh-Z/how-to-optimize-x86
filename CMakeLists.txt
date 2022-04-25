@@ -16,7 +16,7 @@ set(USE_LIBRARY OFF)
 message(STATUS "Compile sources into a library? ${USE_LIBRARY}")
 
 set(BUILD_SHARED_LIBS OFF)
-list(APPEND _tool conv/tool.h conv/tool.cpp)
+list(APPEND _tool conv/gemm_fun.h conv/gemm_fun.cpp conv/convolution.h conv/convolution.cpp)
 
 if(USE_LIBRARY)
         add_library(Tool ${_tool})
