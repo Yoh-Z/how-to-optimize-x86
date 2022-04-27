@@ -52,11 +52,11 @@ int createRandom(float* src, int width, int height, int channel, int bottom, int
 
 void pretty_print(float* src, int width, int height)
 {
-	for (int i = 0; i < width; i++)
+	for (int i = 0; i < height; i++)
 	{
-		for (int j = 0; j < height; j++)
+		for (int j = 0; j < width; j++)
 		{
-			cout << src[i * height + j] << " ";
+			cout << src[i * width + j] << " ";
 		}
 		cout << endl;
 	}
@@ -156,7 +156,7 @@ void test_im2col()
 	const int stride = outW * outH * kW * kH;
 	for (int k = 0; k < c; k++)
 	{
-		pretty_print(output_blob + k * stride, kW * kH, outW * outH);
+		pretty_print(output_blob + k * stride, outW * outH, kW * kH);
 		cout << endl;
 	}
 
@@ -166,7 +166,7 @@ void test_im2col()
 
 void test_conv()
 {
-	int w = 41, h = 43, c = 31, kW = 31, kH = 31;
+	int w = 413, h = 431, c = 31, kW = 3, kH = 3;
 	float* input_blob = new float[w * h * c];
 	createRandom(input_blob, w, h, c, 0, 20);
 
@@ -181,7 +181,11 @@ void test_conv()
 	float* output_blob = new float[outW * outH * c];
 	memset(output_blob, 0, sizeof(float) * outW * outH * c);
 	
+	double t1, t2, t3, t4;
+
+	t1 = get_current_time();
 	naive_conv(input_blob, kernel_blob, output_blob, w, h, c, kW, kH, 1, 1, 0, 0);
+	t2 = get_current_time();
 
 #if DEBUG_TEST
 	
@@ -189,7 +193,11 @@ void test_conv()
 
 	float* res_blob = new float[outW * outH * c];
 	memset(res_blob, 0, sizeof(float) * outW * outH * c);
+
+	t3 = get_current_time();
 	CONVFUNC(input_blob, kernel_blob, res_blob, w, h, c, kW, kH, 1, 1, 0, 0);
+	t4 = get_current_time();
+
 
 	double diff = 0.0;
 	for (int i = 0; i < outW * outH * c; i++) 
@@ -212,7 +220,8 @@ void test_conv()
 #endif
 	}
 	else {
-		cout << "conv is correct!" << endl;
+		cout << "naive conv used time: " << t2 - t1 << endl;
+		cout << "im2col + gemm used time: " << t4 - t3 << endl;
 	}
 
 	delete[]input_blob;
@@ -221,9 +230,59 @@ void test_conv()
 	delete[]res_blob;
 }
 
+void test_pack1to8()
+{
+	int w = 4, h = 4, c = 8;
+	float* input_blob = new float[w * h * c];
+	for (int i = 0; i < w * h; i++)
+	{
+		for (int j = 1; j <= c; j++)
+		{
+			input_blob[i + (j - 1) * w * h] = i + j;
+		}
+	}
+
+	for (int i = 0; i < c; i++)
+	{
+		pretty_print(input_blob + i * w * h, w, h);
+		cout << endl;
+	}
+
+	float* output_blob = new float[w * h * c];
+	pack1to8_avx(input_blob, output_blob, w, h, c);
+
+	pretty_print(output_blob, w * 8, h);
+}
+
+void test_im2col_pack8()
+{
+	int w = 4, h = 4, c = 8, kW = 3, kH = 3;
+	float* input_blob = new float[w * h * c];
+	for (int i = 0; i < w * h; i++)
+	{
+		for (int j = 0; j < c; j++)
+		{
+			input_blob[i + j * w * h] = i + j;
+		}
+	}
+
+	float* im2col_iunput_blob = new float[w * h * c];
+	pack1to8_avx(input_blob, im2col_iunput_blob, w, h, c);
+
+	pretty_print(im2col_iunput_blob, w * 8, h);
+
+	const int outW = w - kW + 1;
+	const int outH = h - kH + 1;
+	float* output_blob = new float[outW * outH * kW * kH * c];
+	memset(output_blob, 0, sizeof(float) * outW * outH * kW * kH * c);
+
+	im2col_pack8_avx(im2col_iunput_blob, output_blob, w, h, c / 8, kW, kH, 1, 1, 0, 0);
+
+	pretty_print(output_blob, outW * outH * 8, kW * kH);
+}
+
 int main() 
 {
-	test_conv();
 
 	return 0;
 }
