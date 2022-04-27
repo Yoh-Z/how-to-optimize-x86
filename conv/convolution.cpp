@@ -159,7 +159,7 @@ void im2col_pack8_avx(const float* src, float* dst, int inW, int inH, int inC, i
     const int outW = (inW - kW + 2 * paddingW) / strideW + 1;
     const int outH = (inH - kH + 2 * paddingH) / strideH + 1;
 
-    for (int ch = 0; ch < inC; ch++)
+    for (int ch = 0; ch < inC / 8; ch++)
     {
         const float* cur_src = src + ch * inW * inH * 8;
         int dst_idx = kW * kH * outW * outH * ch * 8;
@@ -175,7 +175,6 @@ void im2col_pack8_avx(const float* src, float* dst, int inW, int inH, int inC, i
                         int row = x * strideH + i;
                         int col = y * strideW + j;
                         int ori_idx = row * inW + col;
-                        printf("\n%lf %d %d %d\n", cur_src[ori_idx * 8], ori_idx * 8, row, col);
                         __m256 _v = _mm256_load_ps(&cur_src[ori_idx * 8]);
                         _mm256_store_ps(&dst[dst_idx], _v);
                         dst_idx += 8;
@@ -184,4 +183,239 @@ void im2col_pack8_avx(const float* src, float* dst, int inW, int inH, int inC, i
             }
         }
     }
+
+}
+
+typedef union {
+    __m256 v;
+    float d[8];
+}v8f_t;
+
+void AddtoDot1x1FMA_pack8(int m, int n, int k, float* a, float* b, float* c)
+{
+    /*
+    (1 2 3 4 5 6 7 8) (2 3 4 5 6 7 8 9) (3 4 5 6 7 8 9 10) (5 x x x x x x x)  (6 x x x x x x x)  (7 x x x x x x x)  (9 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x)
+                                                                                        x
+    
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    
+                                                                                        |
+                                                                                       \_/
+    
+    (54 x x x x x x x)
+    */
+
+    float* a_0p_pntr = a;
+    v8f_t c_reg_sum, a_reg, b_reg;
+    c_reg_sum.v = _mm256_setzero_ps();
+    a_reg.v = _mm256_setzero_ps();
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_load_ps((float*)&b[i * n]);
+
+        a_reg.v = _mm256_load_ps(a_0p_pntr);
+
+        c_reg_sum.v = _mm256_fmadd_ps(b_reg.v, a_reg.v, c_reg_sum.v);
+
+        a_0p_pntr += 8;
+    }
+
+    _mm256_storeu_ps(c, c_reg_sum.v);
+}
+
+void AddtoDot1x8FMA_pack8(int m, int n, int k, float* a, float* b, float* c)
+{
+    /*
+    (1 2 3 4 5 6 7 8) (2 3 4 5 6 7 8 9) (3 4 5 6 7 8 9 10) (5 x x x x x x x)  (6 x x x x x x x)  (7 x x x x x x x)  (9 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x)
+    (2 x x x x x x x) (3 x x x x x x x) (4 x x x x x x x)  (6 x x x x x x x)  (7 x x x x x x x)  (8 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x) (12 x x x x x x x)
+    (5 x x x x x x x) (6 x x x x x x x) (7 x x x x x x x)  (9 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x) (13 x x x x x x x) (14 x x x x x x x) (15 x x x x x x x)
+    (6 x x x x x x x) (7 x x x x x x x) (8 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x) (12 x x x x x x x) (14 x x x x x x x) (15 x x x x x x x) (16 x x x x x x x)
+    (1 2 3 4 5 6 7 8) (2 3 4 5 6 7 8 9) (3 4 5 6 7 8 9 10) (5 x x x x x x x)  (6 x x x x x x x)  (7 x x x x x x x)  (9 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x)
+    (2 x x x x x x x) (3 x x x x x x x) (4 x x x x x x x)  (6 x x x x x x x)  (7 x x x x x x x)  (8 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x) (12 x x x x x x x)
+    (5 x x x x x x x) (6 x x x x x x x) (7 x x x x x x x)  (9 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x) (13 x x x x x x x) (14 x x x x x x x) (15 x x x x x x x)
+    (6 x x x x x x x) (7 x x x x x x x) (8 x x x x x x x)  (10 x x x x x x x) (11 x x x x x x x) (12 x x x x x x x) (14 x x x x x x x) (15 x x x x x x x) (16 x x x x x x x)
+                                                                                        x
+    
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    (1 x x x x x x x)
+    
+                                                                                        |
+                                                                                       \_/
+    
+    (54 x x x x x x x) (63 x x x x x x x) (90 x x x x x x x) (99 x x x x x x x) (54 x x x x x x x) (63 x x x x x x x) (90 x x x x x x x) (99 x x x x x x x)
+    */
+    
+
+    float* a_0p_pntr, * a_1p_pntr, * a_2p_pntr, * a_3p_pntr, * a_4p_pntr, * a_5p_pntr, * a_6p_pntr, * a_7p_pntr;
+
+    a_0p_pntr = a;
+    a_1p_pntr = a + k * 8;
+    a_2p_pntr = a + 2 * k * 8;
+    a_3p_pntr = a + 3 * k * 8;
+    a_4p_pntr = a + 4 * k;
+    a_5p_pntr = a + 5 * k;
+    a_6p_pntr = a + 6 * k;
+    a_7p_pntr = a + 7 * k;
+
+    v8f_t
+        c_p0_sum,
+        c_p1_sum,
+        c_p2_sum,
+        c_p3_sum,
+        c_p4_sum,
+        c_p5_sum,
+        c_p6_sum,
+        c_p7_sum;
+
+    v8f_t a_0p_reg, a_1p_reg, a_2p_reg, a_3p_reg, a_4p_reg, a_5p_reg, a_6p_reg, a_7p_reg, b_reg;
+    c_p0_sum.v = _mm256_setzero_ps();
+    c_p1_sum.v = _mm256_setzero_ps();
+    c_p2_sum.v = _mm256_setzero_ps();
+    c_p3_sum.v = _mm256_setzero_ps();
+    c_p4_sum.v = _mm256_setzero_ps();
+    c_p5_sum.v = _mm256_setzero_ps();
+    c_p6_sum.v = _mm256_setzero_ps();
+    c_p7_sum.v = _mm256_setzero_ps();
+    a_0p_reg.v = _mm256_setzero_ps();
+    a_1p_reg.v = _mm256_setzero_ps();
+    a_2p_reg.v = _mm256_setzero_ps();
+    a_3p_reg.v = _mm256_setzero_ps();
+    a_4p_reg.v = _mm256_setzero_ps();
+    a_5p_reg.v = _mm256_setzero_ps();
+    a_6p_reg.v = _mm256_setzero_ps();
+    a_7p_reg.v = _mm256_setzero_ps();
+
+    for (int i = 0; i < k; i++)
+    {
+        b_reg.v = _mm256_load_ps((float*)&b[i * n]);
+
+        a_0p_reg.v = _mm256_load_ps(a_0p_pntr);
+        a_1p_reg.v = _mm256_load_ps(a_1p_pntr);
+        a_2p_reg.v = _mm256_load_ps(a_2p_pntr);
+        a_3p_reg.v = _mm256_load_ps(a_3p_pntr);
+        a_4p_reg.v = _mm256_load_ps(a_4p_pntr);
+        a_5p_reg.v = _mm256_load_ps(a_5p_pntr);
+        a_6p_reg.v = _mm256_load_ps(a_6p_pntr);
+        a_7p_reg.v = _mm256_load_ps(a_7p_pntr);
+
+        c_p0_sum.v = _mm256_fmadd_ps(b_reg.v, a_0p_reg.v, c_p0_sum.v);
+        c_p1_sum.v = _mm256_fmadd_ps(b_reg.v, a_1p_reg.v, c_p1_sum.v);
+        c_p2_sum.v = _mm256_fmadd_ps(b_reg.v, a_2p_reg.v, c_p2_sum.v);
+        c_p3_sum.v = _mm256_fmadd_ps(b_reg.v, a_3p_reg.v, c_p3_sum.v);
+        c_p4_sum.v = _mm256_fmadd_ps(b_reg.v, a_4p_reg.v, c_p4_sum.v);
+        c_p5_sum.v = _mm256_fmadd_ps(b_reg.v, a_5p_reg.v, c_p5_sum.v);
+        c_p6_sum.v = _mm256_fmadd_ps(b_reg.v, a_6p_reg.v, c_p6_sum.v);
+        c_p7_sum.v = _mm256_fmadd_ps(b_reg.v, a_7p_reg.v, c_p7_sum.v);
+
+        a_0p_pntr += 8;
+        a_1p_pntr += 8;
+        a_2p_pntr += 8;
+        a_3p_pntr += 8;
+        a_4p_pntr += 8;
+        a_5p_pntr += 8;
+        a_6p_pntr += 8;
+        a_7p_pntr += 8;
+    }
+
+    float* n_c = c;
+    _mm256_storeu_ps(n_c, c_p0_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p1_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p2_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p3_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p4_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p5_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p6_sum.v);
+    n_c += n * 8;
+    _mm256_storeu_ps(n_c, c_p7_sum.v);
+
+
+}
+
+void sgemm_pack8_avx(int m, int n, int k, float* a, float* b, float* c)
+{
+    int i = 0;
+    for (; i + 7 < m; i += 8)
+    {
+        for (int j = 0; j < n; j += 8)
+        {
+            AddtoDot1x8FMA_pack8(m, n, k, &a[i * k], &b[j], &c[i * n * 8 + j]);
+        }
+    }
+    for (; i < m; i++)
+    {
+        for (int j = 0; j < n; j += 8)
+        {
+            AddtoDot1x1FMA_pack8(m, n, k, &a[i * k], &b[j], &c[i * n * 8 + j]);
+        }
+    }
+}
+
+void im2col_sgemm_pack8_avx(const float* src, float* kernel, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
+{
+    const int outW = (inW - kW + 2 * paddingW) / strideW + 1;
+    const int outH = (inH - kH + 2 * paddingH) / strideH + 1;
+
+    float* kernel_tmp = new float[kW * kH * inC];
+    pack1to8_avx(kernel, kernel_tmp, kW, kH, inC);
+
+    float* pack8_tmp = new float[inW * inH * inC];
+    pack1to8_avx(src, pack8_tmp, inW, inH, inC);
+    float* im2col_pack8_blob = new float[outW * outH * inW * inH * inC];
+    float* tmp_blob = new float[outW * outH * inW * inH * inC];
+
+    double t1, t2;
+    t1 = get_current_time();
+
+    im2col_pack8_avx(pack8_tmp, im2col_pack8_blob, inW, inH, inC, kW, kH, 1, 1, 0, 0);
+
+
+
+    //transpose
+    float* tmp_ptr = tmp_blob;
+    const int stride = outW * outH * 8;
+    for (int ch = 0; ch < inC / 8; ch++)
+    {
+        const float* im2col_ptr = im2col_pack8_blob + ch * outW * outH * kW * kH * 8;
+        for (int i = 0; i < outW * outH; i++)
+        {
+            for (int j = 0; j < kH * kW; j++)
+            {
+                __m256 _v = _mm256_load_ps(im2col_ptr + j * stride);
+                _mm256_store_ps(tmp_ptr, _v);
+                tmp_ptr += 8;
+            }
+            im2col_ptr += 8;
+        }
+    }
+
+    //pretty_print(tmp_blob, kW * kH * 8, outW * outH);
+
+    for (int i = 0; i < inC / 8; i++)
+    {
+        sgemm_pack8_avx(outW * outH, 1, kW * kH, tmp_blob + i * outW * outH * kW * kH * 8, kernel + i * kW * kH * 8, dst + i * outW * outH * 8);
+    }
+
+    pretty_print(dst, outW * 8, outH);
 }

@@ -15,9 +15,9 @@
 #include "convolution.h"
 using namespace std;
 
-#define DEBUG_TEST 1
+#define DEBUG_TEST 0
 #define FUNC_USED mul_v11
-#define CONVFUNC im2col_gemm
+#define CONVFUNC im2col_sgemm_pack8_avx
 
 double get_current_time()
 {
@@ -65,7 +65,7 @@ void pretty_print(float* src, int width, int height)
 void gemm_benchmark()
 {
 	srand((unsigned)time(NULL));
-	int m = 800, n = 240, k = 120;
+	int m = 8192, n = 8192, k = 8;
 	double gflops = 2.0 * m * n * k * 1.0e-09;
 	float* a = new float[m * k];
 	float* b = new float[k * n];
@@ -137,7 +137,7 @@ void test_im2col()
 	float* input_blob = new float[w * h * c];
 	for (int i = 0; i < w * h; i++)
 	{
-		input_blob[i] = i;
+		input_blob[i] = i + 1;
 		input_blob[w * h + i] = 2 * i;
 		input_blob[w * h * 2 + i] = 3 * i;
 	}
@@ -166,11 +166,18 @@ void test_im2col()
 
 void test_conv()
 {
-	int w = 413, h = 431, c = 31, kW = 3, kH = 3;
+	int w = 4, h = 4, c = 8, kW = 3, kH = 3;
 	float* input_blob = new float[w * h * c];
-	createRandom(input_blob, w, h, c, 0, 20);
+	//createRandom(input_blob, w, h, c, 0, 20);
 
 	float* kernel_blob = new float[kW * kH * c];
+	for (int i = 0; i < w * h; i++)
+	{
+		for (int j = 1; j <= c; j++)
+		{
+			input_blob[i + (j - 1) * w * h] = i + j;
+		}
+	}
 	for (int i = 0; i < kW * kH * c; i++)
 	{
 		kernel_blob[i] = 1;
@@ -270,19 +277,21 @@ void test_im2col_pack8()
 	pack1to8_avx(input_blob, im2col_iunput_blob, w, h, c);
 
 	pretty_print(im2col_iunput_blob, w * 8, h);
+	cout << endl;
 
 	const int outW = w - kW + 1;
 	const int outH = h - kH + 1;
 	float* output_blob = new float[outW * outH * kW * kH * c];
 	memset(output_blob, 0, sizeof(float) * outW * outH * kW * kH * c);
 
-	im2col_pack8_avx(im2col_iunput_blob, output_blob, w, h, c / 8, kW, kH, 1, 1, 0, 0);
+	im2col_pack8_avx(im2col_iunput_blob, output_blob, w, h, c, kW, kH, 1, 1, 0, 0);
 
 	pretty_print(output_blob, outW * outH * 8, kW * kH);
 }
 
 int main() 
 {
+	test_conv();
 
 	return 0;
 }
