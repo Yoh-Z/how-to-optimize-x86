@@ -382,8 +382,8 @@ void im2col_sgemm_pack8_avx(const float* src, float* kernel, float* dst, int inW
 
     float* pack8_tmp = new float[inW * inH * inC];
     pack1to8_avx(src, pack8_tmp, inW, inH, inC);
-    float* im2col_pack8_blob = new float[outW * outH * inW * inH * inC];
-    float* tmp_blob = new float[outW * outH * inW * inH * inC];
+    float* im2col_pack8_blob = new float[kW * kH * inW * inH * inC];
+    float* tmp_blob = new float[kW * kH * inW * inH * inC];
 
     double t1, t2;
     t1 = get_current_time();
@@ -416,6 +416,12 @@ void im2col_sgemm_pack8_avx(const float* src, float* kernel, float* dst, int inW
     {
         sgemm_pack8_avx(outW * outH, 1, kW * kH, tmp_blob + i * outW * outH * kW * kH * 8, kernel + i * kW * kH * 8, dst + i * outW * outH * 8);
     }
+    t2 = get_current_time();
+    printf("im2col_sgemm_pack8_avx used time :  %lf", t2 - t1);
+    //pretty_print(dst, outW * 8, outH);
 
-    pretty_print(dst, outW * 8, outH);
+    delete[]kernel_tmp;
+    delete[]pack8_tmp;
+    delete[]im2col_pack8_blob;
+    delete[]tmp_blob;
 }

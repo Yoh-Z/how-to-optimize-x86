@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
+#include <string>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -62,7 +63,7 @@ void pretty_print(float* src, int width, int height)
 	}
 }
 
-void gemm_benchmark()
+void test_gemm()
 {
 	srand((unsigned)time(NULL));
 	int m = 8192, n = 8192, k = 8;
@@ -131,6 +132,98 @@ void gemm_benchmark()
 	delete[]d;
 }
 
+
+void gemm_benchmark()
+{
+	srand((unsigned)time(NULL));
+	int m = 8, n = 8, k = 8;
+	double data_save_v1[801], data_save_v5[801], data_save_v6[801], data_save_v7[801], data_save_v8[801], data_save_v11[801];
+	double v1_used_time, v5_used_time, v6_used_time, v7_used_time, v8_used_time, v11_used_time;
+	for (; m <= 800; m++, n++, k++)
+	{
+		v1_used_time = DBL_MAX;
+		v5_used_time = DBL_MAX;
+		v6_used_time = DBL_MAX;
+		v7_used_time = DBL_MAX;
+		v8_used_time = DBL_MAX;
+		v11_used_time = DBL_MAX;
+		double gflops = 2.0 * m * n * k * 1.0e-09;
+		float* a = new float[m * k];
+		float* b = new float[k * n];
+		float* c = new float[m * n];
+		float* d = new float[m * n];
+		memset(c, 0, m * n * sizeof(*c));
+		memset(d, 0, m * n * sizeof(*d));
+
+		createRandom(a, m, k, 1, 0, 20);
+		createRandom(b, k, n, 1, 0, 20);
+
+		double time_b, time_e;
+
+		for (int i = 0; i < 20; ++i)
+		{
+			memset(c, 0, m * n * sizeof(*c));
+			time_b = get_current_time();
+			mul_v1(m, n, k, a, b, d);
+			time_e = get_current_time();
+			v1_used_time = min((double)(time_e - time_b), v1_used_time);
+
+			memset(c, 0, m * n * sizeof(*c));
+			time_b = get_current_time();
+			mul_v5(m, n, k, a, b, d);
+			time_e = get_current_time();
+			v5_used_time = min((double)(time_e - time_b), v5_used_time);
+
+			memset(c, 0, m * n * sizeof(*c));
+			time_b = get_current_time();
+			mul_v6(m, n, k, a, b, d);
+			time_e = get_current_time();
+			v6_used_time = min((double)(time_e - time_b), v6_used_time);
+
+			memset(c, 0, m * n * sizeof(*c));
+			time_b = get_current_time();
+			mul_v7(m, n, k, a, b, d);
+			time_e = get_current_time();
+			v7_used_time = min((double)(time_e - time_b), v7_used_time);
+
+			memset(c, 0, m * n * sizeof(*c));
+			time_b = get_current_time();
+			mul_v8(m, n, k, a, b, d);
+			time_e = get_current_time();
+			v8_used_time = min((double)(time_e - time_b), v8_used_time);
+
+			memset(c, 0, m * n * sizeof(*c));
+			time_b = get_current_time();
+			mul_v11(m, n, k, a, b, d);
+			time_e = get_current_time();
+			v11_used_time = min((double)(time_e - time_b), v11_used_time);
+			data_save_v1[m] = gflops / v1_used_time * 1e3;
+			data_save_v5[m] = gflops / v5_used_time * 1e3;
+			data_save_v6[m] = gflops / v6_used_time * 1e3;
+			data_save_v7[m] = gflops / v7_used_time * 1e3;
+			data_save_v8[m] = gflops / v8_used_time * 1e3;
+			data_save_v11[m] = gflops / v11_used_time * 1e3;
+
+			delete[]a;
+			delete[]b;
+			delete[]c;
+			delete[]d;
+
+			cout << m << endl;
+		}
+
+		FILE* fp;
+		fp = fopen("data.txt", "wb");
+
+		string data = "";
+		for (int i = 0; i <= 801; i++)
+		{
+			data += to_string(i) + " " + to_string(data_save_v1[i]) + " " + to_string(data_save_v5[i]) + " " + to_string(data_save_v6[i]) + " " + to_string(data_save_v7[i]) + " " + to_string(data_save_v8[i]) + " " + to_string(data_save_v11[i]) + " " + "\n";
+		}
+		fwrite(data.c_str(), 1, data.size(), fp);
+		fclose(fp);
+	}
+
 void test_im2col()
 {
 	int w = 4, h = 4, c = 3, kW = 3, kH = 3;
@@ -166,7 +259,7 @@ void test_im2col()
 
 void test_conv()
 {
-	int w = 4, h = 4, c = 8, kW = 3, kH = 3;
+	int w = 256, h = 256, c = 64, kW = 3, kH = 3;
 	float* input_blob = new float[w * h * c];
 	//createRandom(input_blob, w, h, c, 0, 20);
 
@@ -193,6 +286,7 @@ void test_conv()
 	t1 = get_current_time();
 	naive_conv(input_blob, kernel_blob, output_blob, w, h, c, kW, kH, 1, 1, 0, 0);
 	t2 = get_current_time();
+	cout << "naive conv used time: " << t2 - t1 << endl;
 
 #if DEBUG_TEST
 	
@@ -291,7 +385,7 @@ void test_im2col_pack8()
 
 int main() 
 {
-	test_conv();
+	gemm_benchmark();
 
 	return 0;
 }
