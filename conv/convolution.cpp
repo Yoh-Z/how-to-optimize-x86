@@ -40,6 +40,44 @@ void naive_conv(const float* src, const float* kernel, float* dst, int inW, int 
     }
 }
 
+void conv_pack8(const float* src, const float* kernel, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
+{
+    const int outW = (inW - kW + 2 * paddingW) / strideW + 1;
+    const int outH = (inH - kH + 2 * paddingH) / strideH + 1;
+
+    float* dst_ptr = dst;
+    for (int ch = 0; ch < inC / 8; ch++)
+    {
+        for (int i = 0; i < outH; i++)
+        {
+            for (int j = 0; j < outW; j++)
+            {
+                const float* src_ptr = src + i * inW + j + ch * inW * inH * 8;
+                const float* ker_ptr = kernel;
+
+                __m256 _p = _mm256_load_ps(dst_ptr);
+                for (int ii = 0; ii < kH; ii++)
+                {
+                    for (int jj = 0; jj < kW; jj++)
+                    {
+                        *dst_ptr += *(src_ptr + jj) * *ker_ptr;
+                        
+                        __m256 _k = _mm256_load_ps(ker_ptr);
+                        __m256 _v = _mm256_load_ps(src_ptr + jj);
+                        _p = _mm256_fmadd_ps(_k, _v, _p);
+                        
+                        ker_ptr += 8;
+
+                    }
+                    src_ptr += inW * 8;
+                }
+                _mm256_store_ps(dst_ptr, _p);
+                dst_ptr += 8;
+            }
+        }
+    }
+}
+
 
 void im2col(const float* src, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
 {
@@ -425,3 +463,26 @@ void im2col_sgemm_pack8_avx(const float* src, float* kernel, float* dst, int inW
     delete[]im2col_pack8_blob;
     delete[]tmp_blob;
 }
+
+void conv_pack8_avx(const float* src, float* kernel, float* dst, int inW, int inH, int inC, int kW, int kH, int strideW, int strideH, int paddingH, int paddingW)
+{
+    const int outW = (inW - kW + 2 * paddingW) / strideW + 1;
+    const int outH = (inH - kH + 2 * paddingH) / strideH + 1;
+
+    float* kernel_tmp = new float[kW * kH * inC];
+    pack1to8_avx(kernel, kernel_tmp, kW, kH, inC);
+
+    float* pack8_tmp = new float[inW * inH * inC];
+    pack1to8_avx(src, pack8_tmp, inW, inH, inC);
+
+    double t1, t2;
+    t1 = get_current_time();
+
+    conv_pack8(pack8_tmp, kernel_tmp, dst, inW, inH, inC, kW, kH, strideW, strideH, paddingH, paddingW);
+
+    t2 = get_current_time();
+    printf("conv_pack8_avx used time :  %lf\n", t2 - t1);
+
+    //pretty_print(dst, outW * 8, outH);
+}
+

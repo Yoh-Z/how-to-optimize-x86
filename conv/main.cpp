@@ -18,7 +18,7 @@ using namespace std;
 
 #define DEBUG_TEST 0
 #define FUNC_USED mul_v11
-#define CONVFUNC im2col_sgemm_pack8_avx
+#define CONVFUNC conv_pack8_avx
 
 double get_current_time()
 {
@@ -197,32 +197,34 @@ void gemm_benchmark()
 			mul_v11(m, n, k, a, b, d);
 			time_e = get_current_time();
 			v11_used_time = min((double)(time_e - time_b), v11_used_time);
-			data_save_v1[m] = gflops / v1_used_time * 1e3;
-			data_save_v5[m] = gflops / v5_used_time * 1e3;
-			data_save_v6[m] = gflops / v6_used_time * 1e3;
-			data_save_v7[m] = gflops / v7_used_time * 1e3;
-			data_save_v8[m] = gflops / v8_used_time * 1e3;
-			data_save_v11[m] = gflops / v11_used_time * 1e3;
-
-			delete[]a;
-			delete[]b;
-			delete[]c;
-			delete[]d;
-
-			cout << m << endl;
 		}
+		data_save_v1[m] = gflops / v1_used_time * 1e3;
+		data_save_v5[m] = gflops / v5_used_time * 1e3;
+		data_save_v6[m] = gflops / v6_used_time * 1e3;
+		data_save_v7[m] = gflops / v7_used_time * 1e3;
+		data_save_v8[m] = gflops / v8_used_time * 1e3;
+		data_save_v11[m] = gflops / v11_used_time * 1e3;
 
-		FILE* fp;
-		fp = fopen("data.txt", "wb");
+		delete[]a;
+		delete[]b;
+		delete[]c;
+		delete[]d;
 
-		string data = "";
-		for (int i = 0; i <= 801; i++)
-		{
-			data += to_string(i) + " " + to_string(data_save_v1[i]) + " " + to_string(data_save_v5[i]) + " " + to_string(data_save_v6[i]) + " " + to_string(data_save_v7[i]) + " " + to_string(data_save_v8[i]) + " " + to_string(data_save_v11[i]) + " " + "\n";
-		}
-		fwrite(data.c_str(), 1, data.size(), fp);
-		fclose(fp);
+		cout << m << endl;
 	}
+
+	FILE* fp;
+	fp = fopen("data.txt", "wb");
+
+	string data = "";
+	for (int i = 0; i <= 801; i++)
+	{
+		data += to_string(i) + " " + to_string(data_save_v1[i]) + " " + to_string(data_save_v5[i]) + " " + to_string(data_save_v6[i]) + " " + to_string(data_save_v7[i]) + " " + to_string(data_save_v8[i]) + " " + to_string(data_save_v11[i]) + " " + "\n";
+	}
+	fwrite(data.c_str(), 1, data.size(), fp);
+	fclose(fp);
+}
+
 
 void test_im2col()
 {
@@ -259,7 +261,7 @@ void test_im2col()
 
 void test_conv()
 {
-	int w = 256, h = 256, c = 64, kW = 3, kH = 3;
+	int w = 256, h = 256, c = 32, kW = 3, kH = 3;
 	float* input_blob = new float[w * h * c];
 	//createRandom(input_blob, w, h, c, 0, 20);
 
@@ -385,7 +387,7 @@ void test_im2col_pack8()
 
 int main() 
 {
-	gemm_benchmark();
+	test_conv();
 
 	return 0;
 }
